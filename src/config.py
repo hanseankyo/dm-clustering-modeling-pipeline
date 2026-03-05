@@ -4,6 +4,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = BASE_DIR / "data"
 OUTPUT_DIR = BASE_DIR / "outputs"
 MODEL_DIR = BASE_DIR / "models"
+SNP_FEATURE_NUM = 31
 
 # Ensure common output dirs exist
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

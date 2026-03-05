@@ -8,7 +8,7 @@ def main():
     SRC_DIR = BASE_DIR / 'src'
     if str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
-    from config import DATA_DIR, OUTPUT_DIR, MODEL_DIR
+    from config import DATA_DIR, OUTPUT_DIR, MODEL_DIR, SNP_FEATURE_NUM as SNP_INPUT_LEN
     from modeling_common import FCNetwork, check_correct, mkMBP, mk_eGFR_data, seed_everything
 
     import numpy as np
@@ -84,7 +84,6 @@ def main():
         logit_output=torch.sigmoid(output)
         val_loss=criterion(output,tensor_y)
         acc,sen,spe,auc=model_performance_DNN(y,logit_output.cpu().detach().numpy(),cutoff)
-        #print(f'{epoch} {keyword}_loss:{val_loss:.4f} {keyword}_acc:{acc:.4f} {keyword}_sen:{sen:.4f} {keyword}_spe:{spe:.4f} {keyword}_auc:{auc:.4f} ')
 
         return val_loss, acc, sen, spe, auc
 
@@ -173,12 +172,10 @@ def main():
         def get_lr(self):
             if self.last_epoch < self.warmup_epochs:
                 warmup_factor = float(self.last_epoch) / float(self.warmup_epochs)
-                #print(f'warmup_factor : {warmup_factor}')
                 return [base_lr * warmup_factor for base_lr in self.base_lrs]
             else:
                 remaining_epochs = self.total_epochs - self.warmup_epochs
                 regular_schedule = [(base_lr - (base_lr * float(self.last_epoch - self.warmup_epochs) / float(remaining_epochs))) for base_lr in self.base_lrs]
-                #print(f'regular_schedule : {regular_schedule}')
                 return regular_schedule
 
 
@@ -236,7 +233,7 @@ def main():
             self.last=nn.Linear(Total_fe_lst[-1],1)
 
         def forward(self,snp, cli):
-            snp=snp.view([-1,1,31])
+            snp=snp.view([-1,1,SNP_INPUT_LEN])
             snp=self.snp(snp)
 
             cli_output=self.cli_layer(cli)
@@ -331,7 +328,6 @@ def main():
                 y=data['y'].to(device).view(-1,1)
 
                 if epoch<warmup_epochs:
-                    #print('warmup')
                     optimizer1.zero_grad()
 
                     output=net(snp_data, cli_data)
@@ -421,7 +417,6 @@ def main():
         print(f'ts_loss:{tloss:.4f} ts_acc:{tacc:.4f} ts_sen:{tsen:.4f} ts_spe:{tspe:.4f} ts_auc:{tauc:.4f} ')
         current_lr=optimizer.param_groups[0]['lr']
         print(f'E{epoch} : {current_lr}')
-        #scheduler.step(vloss.item())
         stop_flag=False
         if epoch%300==0:
             print()
@@ -433,14 +428,12 @@ def main():
         if early_auc < vauc: # AUC 기준 모델 저장
             print(f'early auc {early_auc}')
             print(f'early cnt {early_count}')
-            #EARLY = 3000
             val_results_df.loc[data_set_num]=[vloss.item(),vacc,vsen,vspe,vauc]
             test_results_df.loc[data_set_num]=[tloss.item(),tacc,tsen,tspe,tauc]
 
             print('Epoch: '+str(epoch)+' save model by validation loss\n')
             Ep = 'Ep-'+str(epoch+1)
             # 모델 저장 이름 설정
-            #file_name = f'{save_path}best_model_elu.h5'
             print(f'[OUTPUT] {file_name}')
             torch.save(net.state_dict(), file_name)
 
@@ -490,6 +483,11 @@ def main():
         train,validation,test=load_data(file_path,data_set_num,scaler)
         snp_col = list(train[0].columns[~train[0].columns.isin(used_columns)])
         tr_snp_x,tr_cli_x=train[0][snp_col],train[0][used_columns]
+        observed_snp_feature_num = tr_snp_x.shape[1]
+        if observed_snp_feature_num != SNP_INPUT_LEN:
+            raise ValueError(
+                f"SNP feature count mismatch: expected {SNP_INPUT_LEN}, got {observed_snp_feature_num}"
+            )
 
         val_snp_x,val_cli_x=validation[0][snp_col],validation[0][used_columns]
         ts_snp_x,ts_cli_x=test[0][snp_col],test[0][used_columns]

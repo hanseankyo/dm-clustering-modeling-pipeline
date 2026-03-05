@@ -8,7 +8,7 @@ def main():
     SRC_DIR = BASE_DIR / 'src'
     if str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
-    from config import DATA_DIR, OUTPUT_DIR, MODEL_DIR
+    from config import DATA_DIR, OUTPUT_DIR, MODEL_DIR, SNP_FEATURE_NUM as SNP_INPUT_LEN
     from modeling_common import FCNetwork, check_correct, mkMBP, mk_eGFR_data, seed_everything
 
     import pandas as pd
@@ -32,7 +32,6 @@ def main():
     import glob
     import os
     import re
-    # import umap
     import argparse
     import time
 
@@ -94,8 +93,6 @@ def main():
         pred_label = np.where(pred>cutoff, 1, 0) # relation to sigmoid activation function
         f1 = f1_score(real, pred_label)
         f2 = fbeta_score(real, pred_label, beta=2)
-        #print(pred_label)
-        #print(real)
         accuracy, sensitivity, specificity=check_correct(pred_label,real)
         auc = roc_auc_score(real, pred)
 
@@ -166,7 +163,7 @@ def main():
             self.last=nn.Linear(Total_fe_lst[-1],1)
 
         def forward(self,snp, cli):
-            snp=snp.view([-1,1,31])
+            snp=snp.view([-1,1,SNP_INPUT_LEN])
             snp=self.snp(snp)
 
             cli_output=self.cli_layer(cli)
@@ -232,7 +229,6 @@ def main():
         validation_raw = validation_raw.dropna().reset_index(drop=True)
         test_raw = test_raw.dropna().reset_index(drop=True)
 
-        # test_raw = pd.concat([train_raw,validation_raw,test_raw]).reset_index(drop=True)
 
         train_raw = mkMBP(train_raw)
         validation_raw = mkMBP(validation_raw)
@@ -349,7 +345,11 @@ def main():
         tr_snp_x,tr_cli_x=train[0][snp_col],train[0][used_columns]
         val_snp_x,val_cli_x=validation[0][snp_col],validation[0][used_columns]
         ts_snp_x,ts_cli_x=test[0][snp_col],test[0][used_columns]
-        SNP_FEATURE_NUM=tr_snp_x.shape[1]
+        observed_snp_feature_num = tr_snp_x.shape[1]
+        if observed_snp_feature_num != SNP_INPUT_LEN:
+            raise ValueError(
+                f"SNP feature count mismatch: expected {SNP_INPUT_LEN}, got {observed_snp_feature_num}"
+            )
         CLI_FEATURE_NUM=tr_cli_x.shape[1]
 
 
@@ -416,7 +416,6 @@ def main():
     total3['Cr'] = mk_eGFR_data(total3)
 
     total3 = total3[total3['area'] != 'SN'].reset_index(drop=True)
-    # total3 = total3[total3['area'] == 55].reset_index(drop=True)
 
     len(total3['sample'].drop_duplicates())
 
@@ -429,8 +428,6 @@ def main():
     tr_snp_x,tr_cli_x=train[0][snp_col],train[0][used_columns]
     val_snp_x,val_cli_x=validation[0][snp_col],validation[0][used_columns]
     ts_snp_x,ts_cli_x=test[0][snp_col],test[0][used_columns]
-
-    snp_count = 31
 
     torch_data_tr = torch.from_numpy(tr_snp_x.values).to(device).float()
     torch_data_tr2 = torch.from_numpy(tr_cli_x.values).to(device).float()
@@ -452,8 +449,6 @@ def main():
     explainer_shap_ts = shap.GradientExplainer(models, [torch_data_tr, torch_data_tr2])
 
     # start = time.time()
-    # shap_values_ts_data = explainer_shap_ts.shap_values([torch_data_ts, torch_data_ts2])
-    # print(time.time() - start)
 
     shap_total_path = OUTPUT_DIR / "SHAP_total_koges.csv"
     shap_total_sample_path = OUTPUT_DIR / "SHAP_total_koges_sample.csv"
@@ -517,8 +512,6 @@ def main():
     tr_snp_x,tr_cli_x=train[0][snp_col],train[0][used_columns]
     val_snp_x,val_cli_x=validation[0][snp_col],validation[0][used_columns]
     ts_snp_x,ts_cli_x=test[0][snp_col],test[0][used_columns]
-
-    snp_count = 31
 
     torch_data_tr = torch.from_numpy(tr_snp_x.values).to(device).float()
     torch_data_tr2 = torch.from_numpy(tr_cli_x.values).to(device).float()

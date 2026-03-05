@@ -37,8 +37,6 @@ def main():
     def model_performance_DNN(real,pred,cutoff):
 
         pred_label = np.where(pred>cutoff, 1, 0) # relation to sigmoid activation function
-        #print(pred_label)
-        #print(real)
         accuracy, sensitivity, specificity=check_correct(pred_label,real)
         auc = roc_auc_score(real, pred)
 
@@ -176,11 +174,8 @@ def main():
             y=data['y'].to(device).view(-1,1)
 
             optimizer.zero_grad()
-            #print(x)
             output=net(x)
-            #print(output)
             logit_output=torch.sigmoid(output)
-            #print(logit_output)
             acc,sen,spe,auc=model_performance_DNN(y.cpu().detach().numpy(),logit_output.cpu().detach().numpy(),0.5)
             batch_tr_acc.append(acc)
             batch_tr_sen.append(sen)
@@ -215,7 +210,6 @@ def main():
             val_P.to_csv(save_path / 'Validation_Performance.csv', index=False)
             break
         if early_auc < vauc: # AUC 기준 모델 저장
-            #EARLY = 50
             print('Epoch: '+str(epoch)+' save model by validation loss\n')
             Ep = 'Ep-'+str(epoch+1)
             # 모델 저장 이름 설정
