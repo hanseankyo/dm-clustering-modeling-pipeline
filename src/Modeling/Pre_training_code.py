@@ -8,7 +8,15 @@ def main():
     SRC_DIR = BASE_DIR / 'src'
     if str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
-    from config import DATA_DIR, OUTPUT_DIR, MODEL_DIR
+    from config import (
+        DATA_DIR,
+        OUTPUT_DIR,
+        MODEL_DIR,
+        PRETRAIN_BATCH_SIZE,
+        PRETRAIN_EPOCHS,
+        PRETRAIN_EARLY,
+        PRETRAIN_LR,
+    )
     from modeling_common import FCNetwork, check_correct, eGFR_cal, mkMBP, seed_everything
 
     import numpy as np
@@ -127,7 +135,7 @@ def main():
     g = torch.Generator()
     g.manual_seed(123)
 
-    tr_loader=DataLoader(train_set,batch_size=512, generator=g, sampler=sampler)#,shuffle=True)
+    tr_loader=DataLoader(train_set,batch_size=PRETRAIN_BATCH_SIZE, generator=g, sampler=sampler)#,shuffle=True)
 
     val_set={'x':nor_pts_x,'y':pts_y.to_numpy()}
 
@@ -140,12 +148,12 @@ def main():
     print(nor_pts_x.shape)
 
     FEATURE_NUM=ptr_x.shape[1]
-    EPOCH=5000
-    EARLY=5000
+    EPOCH=PRETRAIN_EPOCHS
+    EARLY=PRETRAIN_EARLY
 
     seed_everything(123)
     net=FCNetwork(FEATURE_NUM)
-    learningrate = 1e-02 # learning rate
+    learningrate = PRETRAIN_LR # learning rate
     optimizer=optim.AdamW(net.parameters(),lr=learningrate,weight_decay=0.01)
     net.to(device)
     scheduler=optim.lr_scheduler.ReduceLROnPlateau(optimizer,'min',patience=100)

@@ -8,7 +8,21 @@ def main():
     SRC_DIR = BASE_DIR / 'src'
     if str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
-    from config import DATA_DIR, OUTPUT_DIR, MODEL_DIR, SNP_FEATURE_NUM as SNP_INPUT_LEN
+    from config import (
+        DATA_DIR,
+        OUTPUT_DIR,
+        MODEL_DIR,
+        SNP_FEATURE_NUM as SNP_INPUT_LEN,
+        PRE_FEATURE_NUM,
+        TRANSFER_BATCH_SIZE_LIST,
+        TRANSFER_RANDOM_STATE_LIST,
+        TRANSFER_LEARNING_RATE_LIST,
+        TRANSFER_SNP_NUM_LIST,
+        TRANSFER_TOTAL_NUM_LIST,
+        TRANSFER_POSITIVE_WEIGHT_LIST,
+        TRANSFER_DROPOUT_NUM_LIST,
+        SHAP_DEFAULT_POS_WEIGHT,
+    )
     from modeling_common import FCNetwork, check_correct, mkMBP, mk_eGFR_data, seed_everything
 
     import pandas as pd
@@ -212,7 +226,6 @@ def main():
         def __len__(self):
             return self.len
 
-    PRE_FEATURE_NUM=18
     pre_model=FCNetwork(PRE_FEATURE_NUM)
     pretraining_path = latest_pretrain_path(MODEL_DIR / 'Pretrain')
     print(f"[INPUT] {pretraining_path}")
@@ -312,13 +325,13 @@ def main():
 
     from itertools import product
 
-    batch_size_list = [1024]
-    random_state_list = [123]
-    learning_rate_list = [1e-02]
-    SNP_num_list = [3]
-    Total_num_list = [3]
-    positive_weight_list = [1.7]
-    dropout_num_list = [0.5]
+    batch_size_list = TRANSFER_BATCH_SIZE_LIST
+    random_state_list = TRANSFER_RANDOM_STATE_LIST
+    learning_rate_list = TRANSFER_LEARNING_RATE_LIST
+    SNP_num_list = TRANSFER_SNP_NUM_LIST
+    Total_num_list = TRANSFER_TOTAL_NUM_LIST
+    positive_weight_list = TRANSFER_POSITIVE_WEIGHT_LIST
+    dropout_num_list = TRANSFER_DROPOUT_NUM_LIST
     activation_function_list = ['elu']
 
 
@@ -332,7 +345,7 @@ def main():
 
     matching_files = glob.glob(str(directory_path / 'best_model_elu_*'))
 
-    criterion=nn.BCEWithLogitsLoss(pos_weight=torch.tensor(8.0))
+    criterion=nn.BCEWithLogitsLoss(pos_weight=torch.tensor(SHAP_DEFAULT_POS_WEIGHT))
     val_perf = []
     test_perf = []
     used_columns = ['M','F', 'age', 'waist', 'bmi', 'MBP', 'DM_FH', 'htndiag', 'lipdiag', 'exercise',

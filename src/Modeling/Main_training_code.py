@@ -8,7 +8,23 @@ def main():
     SRC_DIR = BASE_DIR / 'src'
     if str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
-    from config import DATA_DIR, OUTPUT_DIR, MODEL_DIR, SNP_FEATURE_NUM as SNP_INPUT_LEN
+    from config import (
+        DATA_DIR,
+        OUTPUT_DIR,
+        MODEL_DIR,
+        SNP_FEATURE_NUM as SNP_INPUT_LEN,
+        PRE_FEATURE_NUM,
+        TRANSFER_EARLY,
+        TRANSFER_WARMUP_EPOCHS,
+        TRANSFER_TOTAL_EPOCHS,
+        TRANSFER_BATCH_SIZE_LIST,
+        TRANSFER_RANDOM_STATE_LIST,
+        TRANSFER_LEARNING_RATE_LIST,
+        TRANSFER_SNP_NUM_LIST,
+        TRANSFER_TOTAL_NUM_LIST,
+        TRANSFER_POSITIVE_WEIGHT_LIST,
+        TRANSFER_DROPOUT_NUM_LIST,
+    )
     from modeling_common import FCNetwork, check_correct, mkMBP, mk_eGFR_data, seed_everything
 
     import numpy as np
@@ -151,8 +167,6 @@ def main():
         # return accuracy, sensitivity, specificity, auc, df
 
         return accuracy, sensitivity, specificity, auc
-
-    PRE_FEATURE_NUM=18
 
     pre_model=FCNetwork(PRE_FEATURE_NUM).to(device)
     pretraining_path = latest_pretrain_path(MODEL_DIR / 'Pretrain')
@@ -313,7 +327,6 @@ def main():
         epoch_tr_auc=[]
         epoch_tr_sen=[]
         epoch_tr_spe=[]   
-        warmup_epochs=30
 
         for epoch in range(total_epochs):
             net.train()
@@ -394,7 +407,7 @@ def main():
 
     def val_test_func(net,val_data,test_data,epoch,early_count,early_auc,val_results_df,test_results_df,data_set_num,criterion,optimizer,file_name):
         net.eval()
-        EARLY =30
+        EARLY = TRANSFER_EARLY
         print(data_set_num)
         vloss, vacc, vsen, vspe, vauc = validation_func(val_data,net,criterion,epoch,'VAL')
         writer.add_scalar('MAINTAIN_validation loss',
@@ -455,13 +468,13 @@ def main():
 
     from itertools import product
 
-    batch_size_list = [1024]
-    random_state_list = [123]
-    learning_rate_list = [1e-02]
-    SNP_num_list = [3]
-    Total_num_list = [3]
-    positive_weight_list = [1.7]
-    dropout_num_list = [0.5]
+    batch_size_list = TRANSFER_BATCH_SIZE_LIST
+    random_state_list = TRANSFER_RANDOM_STATE_LIST
+    learning_rate_list = TRANSFER_LEARNING_RATE_LIST
+    SNP_num_list = TRANSFER_SNP_NUM_LIST
+    Total_num_list = TRANSFER_TOTAL_NUM_LIST
+    positive_weight_list = TRANSFER_POSITIVE_WEIGHT_LIST
+    dropout_num_list = TRANSFER_DROPOUT_NUM_LIST
     activation_function_list = ['elu']
 
 
@@ -472,8 +485,8 @@ def main():
 
     val_results_df=[]
     test_results_df=[]
-    warmup_epochs=10
-    total_epochs=7000
+    warmup_epochs=TRANSFER_WARMUP_EPOCHS
+    total_epochs=TRANSFER_TOTAL_EPOCHS
     used_columns = ['M','F', 'age', 'waist', 'bmi', 'MBP', 'DM_FH', 'htndiag', 'lipdiag', 'exercise',
            'drink', 'smoke', 'FBS', 'Hba1c', 'WBC', 'Tg', 'ALT', 'eGFR']
     for data_set_num in range(1):#range(100):
