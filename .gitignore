@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data and outputs
+/data/
+/outputs/
+*.csv
+*.tsv
+*.xlsx
+*.parquet
+*.h5
+
+# Model artifacts
+/models/
+Model/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Logs
+*.log
+runs/
+
+# OS
+.DS_Store
