@@ -1,8 +1,6 @@
 def main():
     # -*- coding: utf-8 -*-
-    # Auto-generated from Main_training_code.ipynb
 
-    # %% [cell 1]
     from pathlib import Path
     import sys
 
@@ -11,6 +9,7 @@ def main():
     if str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
     from config import DATA_DIR, OUTPUT_DIR, MODEL_DIR
+    from modeling_common import FCNetwork, check_correct, mkMBP, mk_eGFR_data, seed_everything
 
     import numpy as np
     import pandas as pd
@@ -45,64 +44,19 @@ def main():
             return int(m.group(1)) if m else -1
         return max(candidates, key=epoch_num)
 
-    # %% [cell 2]
     from IPython.display import clear_output
     import torchtuples as tt
     from torch.utils.tensorboard import SummaryWriter
     writer = SummaryWriter()
 
-    # %% [cell 3]
     import torch
-    import random
     import numpy as np
 
-
-    def seed_everything(seed):
-        torch.manual_seed(seed) #torch를 거치는 모든 난수들의 생성순서를 고정한다
-        torch.cuda.manual_seed(seed) #cuda를 사용하는 메소드들의 난수시드는 따로 고정해줘야한다 
-        torch.cuda.manual_seed_all(seed)  # if use multi-GPU
-        torch.backends.cudnn.deterministic = True #딥러닝에 특화된 CuDNN의 난수시드도 고정 
-        torch.backends.cudnn.benchmark = False
-        np.random.seed(seed) #numpy를 사용할 경우 고정
-        random.seed(seed) #파이썬 자체 모듈 random 모듈의 시드 고정
-
-    # %% [cell 4]
     if torch.cuda.is_available():
         device=torch.device('cuda')
     else:
         device=torch.device('cpu')
 
-    # %% [cell 5]
-    class FCNetwork(nn.Module):
-        def __init__(self,FEATURE_NUM):
-            super(FCNetwork, self).__init__()
-            self.pre_part=nn.Sequential(
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),  
-
-            )
-            self.fc4 = nn.Linear(FEATURE_NUM, 1)
-
-        def forward(self, x):
-            x=self.pre_part(x)
-            out=self.fc4(x)
-            return out
-
-    # %% [cell 6]
     class GenerateData(Dataset):
         def __init__(self,dataset):
             #dataset:dict
@@ -117,7 +71,6 @@ def main():
         def __len__(self):
             return self.len
 
-    # %% [cell 7]
     def validation_func(data,model,criterion,epoch,keyword, cutoff=0.5):
         snp=data['snp']
         cli=data['cli']
@@ -135,47 +88,6 @@ def main():
 
         return val_loss, acc, sen, spe, auc
 
-    # %% [cell 8]
-    def _to_1d_bin(x):
-        """무엇이 와도 1D numpy의 {0,1}로 변환"""
-        if 'torch' in str(type(x)):
-            x = x.detach().cpu().numpy()
-        x = np.asarray(x).reshape(-1)
-        # 실수라면 0/1로 정규화
-        if x.dtype != np.int64 and x.dtype != np.int32 and x.dtype != np.int8:
-            x = (x > 0.5).astype(int)
-        return x
-
-    def check_correct(predict, y):
-        """
-        predict, y: 1D array-like of {0,1}
-        반환: (accuracy, sensitivity(=recall+), specificity)
-        모든 분모가 0이면 NaN 반환 (예: 양성/음성 표본이 전혀 없을 때)
-        """
-        y = _to_1d_bin(y)
-        predict = _to_1d_bin(predict)
-
-        # 길이/정합성 체크
-        if y.size == 0 or predict.size == 0 or y.size != predict.size:
-            return np.nan, np.nan, np.nan
-
-        tp = np.sum((predict == 1) & (y == 1))
-        tn = np.sum((predict == 0) & (y == 0))
-        fp = np.sum((predict == 1) & (y == 0))
-        fn = np.sum((predict == 0) & (y == 1))
-
-        total = tp + tn + fp + fn
-        acc = (tp + tn) / total if total > 0 else np.nan
-
-        pos_den = tp + fn  # 실제 양성 수
-        sen = tp / pos_den if pos_den > 0 else np.nan
-
-        neg_den = tn + fp  # 실제 음성 수
-        spe = tn / neg_den if neg_den > 0 else np.nan
-
-        return acc, sen, spe
-
-    # %% [cell 9]
     def _to_1d_np(x):
         """torch/tensor/list 등 무엇이 와도 1D numpy로 안전 변환"""
         if 'torch' in str(type(x)):
@@ -241,20 +153,16 @@ def main():
 
         return accuracy, sensitivity, specificity, auc
 
-    # %% [cell 10]
     PRE_FEATURE_NUM=18
 
-    # %% [cell 11]
     pre_model=FCNetwork(PRE_FEATURE_NUM).to(device)
     pretraining_path = latest_pretrain_path(MODEL_DIR / 'Pretrain')
     print(f"[INPUT] {pretraining_path}")
     pre_model.load_state_dict(torch.load(pretraining_path, weights_only=True))
     pre_model=pre_model.pre_part
 
-    # %% [cell 12]
     from torch.optim.lr_scheduler import _LRScheduler
 
-    # %% [cell 13]
     #warm-up schedular
     class WarmUpLR(_LRScheduler):
         def __init__(self,optimizer,warmup_epochs, total_epochs, last_epochs=-1):
@@ -274,7 +182,6 @@ def main():
                 return regular_schedule
 
 
-    # %% [cell 14]
     class Net1(nn.Module):
         def __init__(self, SNP_FEATURE_NUM, CLI_FEATURE_NUM, T_FEATURE_NUM,pre_model):
             super(Net1,self).__init__()
@@ -359,34 +266,6 @@ def main():
             elif func=='mish':
                 return nn.Mish()
 
-    # %% [cell 15]
-    def eGFR_cal(Cr,age, sex):
-        if sex == 1 :# 여성
-            K = 0.7
-            alpha = -0.241 
-            last = 1.012
-        else:# 남성
-            K = 0.9
-            alpha = -0.302 
-            last = 1
-
-        eGFR = 142*((min(Cr/K,1))**alpha)*((max(Cr/K,1))**(-1.2))*((0.9938)**age)*last
-        return np.round(eGFR,0)
-
-    # %% [cell 16]
-    def mk_eGFR_data(clinical_only_raw):
-        eGFR_data = []
-        for sample in range(len(clinical_only_raw)):
-            eGFR_data.append(eGFR_cal(clinical_only_raw.loc[sample,"Cr"], clinical_only_raw.loc[sample,"age"], clinical_only_raw.loc[sample,"F"]))
-        return eGFR_data
-
-    # %% [cell 17]
-    def mkMBP(cli):
-        cli['MBP'] = (2*cli['dia'] + cli['sys'])/3
-        cli = cli.drop(columns = ['dia','sys'])
-        return cli
-
-    # %% [cell 18]
     def load_data(file_path,idx,scaler):
         tr_path=os.path.join(file_path,f'Train.csv')
         val_path=os.path.join(file_path,f'Validation.csv')
@@ -430,8 +309,7 @@ def main():
 
         return (train_x,train_y),(validation_x,validation_y),(test_x,test_y)
 
-    # %% [cell 19]
-    def train_func(net,optimizer1,optimizer2,warmup_lr_scheduler,step_lr_scheduler,criterion,warmup_epochs,total_epochs,ptr_set,tr_loader,val_data,test_data,data_set_num,val_results_df,test_results_df):
+    def train_func(net,optimizer1,optimizer2,warmup_lr_scheduler,step_lr_scheduler,criterion,warmup_epochs,total_epochs,ptr_set,tr_loader,val_data,test_data,data_set_num,val_results_df,test_results_df,file_name):
         early_count = 0
         early_auc = 0 
         epoch_tr_loss=[]
@@ -511,15 +389,14 @@ def main():
 
             early_auc,early_count,stop_flag,val_results_df,test_results_df = val_test_func(net,val_data,test_data,epoch,early_count,
                                                                                            early_auc,val_results_df,test_results_df,data_set_num,
-                                                                                           criterion,optimizer2)
+                                                                                           criterion,optimizer2,file_name)
 
             if stop_flag==True:
                 return val_results_df,test_results_df
             else:
                 continue
 
-    # %% [cell 20]
-    def val_test_func(net,val_data,test_data,epoch,early_count,early_auc,val_results_df,test_results_df,data_set_num,criterion,optimizer):
+    def val_test_func(net,val_data,test_data,epoch,early_count,early_auc,val_results_df,test_results_df,data_set_num,criterion,optimizer,file_name):
         net.eval()
         EARLY =30
         print(data_set_num)
@@ -575,17 +452,14 @@ def main():
             early_count = early_count + 1
             return early_auc,early_count,stop_flag,val_results_df,test_results_df
 
-    # %% [cell 21]
     def linspace(start, end, n):
         print(end)
         step = (end - start) / (n - 1)
         return [start + int(np.round(i * step)) for i in range(n)]
 
-    # %% [cell 22]
     save_path = MODEL_DIR / 'Transfer_learning'
     save_path.mkdir(parents=True, exist_ok=True)
 
-    # %% [cell 23]
     from itertools import product
 
     batch_size_list = [1024]
@@ -603,7 +477,6 @@ def main():
 
     print(len(combinations))
 
-    # %% [cell 24]
     val_results_df=[]
     test_results_df=[]
     warmup_epochs=10
@@ -681,7 +554,7 @@ def main():
             optimizer2=optim.AdamW(net.parameters(),lr=lr_rate,weight_decay=0.001)
             step_lr_scheduler=optim.lr_scheduler.ReduceLROnPlateau(optimizer2,'min',patience=20, factor=0.5)
             criterion=nn.BCEWithLogitsLoss(pos_weight=torch.tensor(weighted_pos_weight))
-            val_results_df_1,test_results_df_1=train_func(net,optimizer1,optimizer2,warmup_lr_scheduler,step_lr_scheduler,criterion,warmup_epochs,total_epochs,tr_set,tr_loader,val_data,test_data,data_set_num,val_results_df_1,test_results_df_1)
+            val_results_df_1,test_results_df_1=train_func(net,optimizer1,optimizer2,warmup_lr_scheduler,step_lr_scheduler,criterion,warmup_epochs,total_epochs,tr_set,tr_loader,val_data,test_data,data_set_num,val_results_df_1,test_results_df_1,file_name)
             writer.flush()
             val_results_df.append(val_results_df_1)
             test_results_df.append(test_results_df_1)
@@ -692,22 +565,6 @@ def main():
     val_results_df.to_csv(save_path / "validation_performance.csv", index=False)
     print(f"[OUTPUT] {save_path / 'test_performance.csv'}")
     test_results_df.to_csv(save_path / "test_performance.csv", index=False)
-
-    # %% [cell 25]
-
-    # %% [cell 26]
-
-    # %% [cell 27]
-
-    # %% [cell 28]
-
-    # %% [cell 29]
-
-    # %% [cell 30]
-
-    # %% [cell 31]
-
-    # %% [cell 32]
 
 
 if __name__ == '__main__':

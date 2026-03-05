@@ -1,8 +1,6 @@
 def main():
     # -*- coding: utf-8 -*-
-    # Auto-generated from Pre_training_code.ipynb
 
-    # %% [cell 1]
     from pathlib import Path
     import sys
 
@@ -11,6 +9,7 @@ def main():
     if str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
     from config import DATA_DIR, OUTPUT_DIR, MODEL_DIR
+    from modeling_common import FCNetwork, check_correct, eGFR_cal, mkMBP, seed_everything
 
     import numpy as np
     import pandas as pd
@@ -33,45 +32,11 @@ def main():
     log_paths("Input files:", [DATA_DIR / "Only_clinical.csv"])
     log_paths("Output dirs:", [OUTPUT_DIR, MODEL_DIR])
 
-    # %% [cell 2]
     clinical_only_raw = pd.read_csv(DATA_DIR / "Only_clinical.csv")
 
-    # %% [cell 3]
     import torch
-    import random
     import numpy as np
 
-
-    def seed_everything(seed):
-        torch.manual_seed(seed) #torch를 거치는 모든 난수들의 생성순서를 고정한다
-        torch.cuda.manual_seed(seed) #cuda를 사용하는 메소드들의 난수시드는 따로 고정해줘야한다 
-        torch.cuda.manual_seed_all(seed)  # if use multi-GPU
-        torch.backends.cudnn.deterministic = True #딥러닝에 특화된 CuDNN의 난수시드도 고정 
-        torch.backends.cudnn.benchmark = False
-        np.random.seed(seed) #numpy를 사용할 경우 고정
-        random.seed(seed) #파이썬 자체 모듈 random 모듈의 시드 고정
-
-    # %% [cell 4]
-    def eGFR_cal(Cr,age, sex):
-        if sex == 1 :# 여성
-            K = 0.7
-            alpha = -0.241 
-            last = 1.012
-        else:# 남성
-            K = 0.9
-            alpha = -0.302 
-            last = 1
-
-        eGFR = 142*((min(Cr/K,1))**alpha)*((max(Cr/K,1))**(-1.2))*((0.9938)**age)*last
-        return np.round(eGFR,0)
-
-    # %% [cell 5]
-    def mkMBP(cli):
-        cli['MBP'] = (2*cli['dia'] + cli['sys'])/3
-        cli = cli.drop(columns = ['dia','sys'])
-        return cli
-
-    # %% [cell 6]
     # Function for DNN performance
     def model_performance_DNN(real,pred,cutoff):
 
@@ -94,37 +59,6 @@ def main():
 
         return accuracy ,sensitivity, specificity ,auc
 
-    # %% [cell 7]
-    # Function for confusion metrics
-    def check_correct(predict, y):     #Using def enables us to customize our own functions. 
-        result = {}
-        result['True-Positive'] = 0
-        result['True-Negative'] = 0
-        result['False-Negative'] = 0
-        result['False-Positive'] = 0
-
-        for i in range(len(predict)) :
-            if predict[i] == y[i] :
-                if y[i] == 0 :
-                    result['True-Negative'] += 1
-                else :
-                    result['True-Positive'] += 1
-            else :
-                if y[i] == 0 :
-                    result['False-Positive'] += 1
-                else :
-                    result['False-Negative'] += 1
-
-        try:
-            accuracy=(result['True-Positive']+result['True-Negative'])/len(y)  # Accuracy = correct predictions / all predictions 
-            sensitivity=result['True-Positive']/(result['True-Positive']+result['False-Negative']) # TP / TP + FN
-            specificity=result['True-Negative']/(result['True-Negative']+result['False-Positive']) # TN / TN + FP
-        except ZeroDivisionError:
-            print('0 divisionerror')
-
-        return accuracy, sensitivity, specificity
-
-    # %% [cell 8]
     def validation(data,model,epoch,keyword, cutoff=0.5):
         x=data['x']
         y=data['y']
@@ -140,37 +74,6 @@ def main():
 
         return val_loss, acc, sen, spe, auc
 
-    # %% [cell 9]
-    class FCNetwork(nn.Module):
-        def __init__(self,FEATURE_NUM):
-            super(FCNetwork, self).__init__()
-            self.pre_part=nn.Sequential(
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),  
-
-            )
-            self.fc4 = nn.Linear(FEATURE_NUM, 1)
-
-        def forward(self, x):
-            x=self.pre_part(x)
-            out=self.fc4(x)
-            return out
-
-    # %% [cell 10]
     class GenerateData(Dataset):
         def __init__(self,dataset):
             #dataset:dict
@@ -184,50 +87,38 @@ def main():
         def __len__(self):
             return self.len
 
-    # %% [cell 11]
     eGFR_data = []
     for sample in range(len(clinical_only_raw)):
         eGFR_data.append(eGFR_cal(clinical_only_raw.loc[sample,"Cr"], clinical_only_raw.loc[sample,"age"], clinical_only_raw.loc[sample,"F"]))
     clinical_only_raw['Cr'] = eGFR_data
     clinical_only_raw = clinical_only_raw.rename(columns = {'Cr':'eGFR'})
 
-    # %% [cell 12]
     drop_cols=['sample','area']
     clinical_only_raw=clinical_only_raw.drop(columns=drop_cols)
 
-    # %% [cell 13]
     clinical_only_raw=clinical_only_raw.dropna()
 
-    # %% [cell 14]
     print(clinical_only_raw.shape)
     print(clinical_only_raw['progress_DM'].value_counts())
 
-    # %% [cell 15]
     cli_x,cli_y=clinical_only_raw.drop(columns=['progress_DM']),clinical_only_raw['progress_DM']
 
-    # %% [cell 16]
     cli_x['Tg']=np.log(cli_x['Tg'])
     cli_x = mkMBP(cli_x)
 
-    # %% [cell 17]
     ptr_x,pts_x,ptr_y,pts_y=train_test_split(cli_x,cli_y,test_size=0.2,stratify=cli_y,random_state=123)
 
-    # %% [cell 18]
     p_scaler=MinMaxScaler()
     nor_ptr_x=p_scaler.fit_transform(ptr_x)
     nor_pts_x=p_scaler.transform(pts_x)
 
-    # %% [cell 19]
     ptr_y.value_counts()
 
-    # %% [cell 20]
     pts_y.value_counts()
 
-    # %% [cell 21]
     ptr_set={'x':nor_ptr_x,'y':ptr_y.to_numpy()}
     train_set=GenerateData(ptr_set)
 
-    # %% [cell 22]
     class_counts = ptr_y.value_counts().to_list()
     num_samples = sum(class_counts)
     labels = ptr_y.to_list()
@@ -244,25 +135,20 @@ def main():
 
     tr_loader=DataLoader(train_set,batch_size=512, generator=g, sampler=sampler)#,shuffle=True)
 
-    # %% [cell 23]
     val_set={'x':nor_pts_x,'y':pts_y.to_numpy()}
 
-    # %% [cell 24]
     if torch.cuda.is_available():
         device=torch.device('cuda')
     else:
         device=torch.device('cpu')
 
-    # %% [cell 25]
     print(nor_ptr_x.shape)
     print(nor_pts_x.shape)
 
-    # %% [cell 26]
     FEATURE_NUM=ptr_x.shape[1]
     EPOCH=5000
     EARLY=5000
 
-    # %% [cell 27]
     seed_everything(123)
     net=FCNetwork(FEATURE_NUM)
     learningrate = 1e-02 # learning rate
@@ -271,11 +157,9 @@ def main():
     scheduler=optim.lr_scheduler.ReduceLROnPlateau(optimizer,'min',patience=100)
     criterion=nn.BCEWithLogitsLoss()
 
-    # %% [cell 28]
     save_path = MODEL_DIR / 'Pretrain'
     save_path.mkdir(parents=True, exist_ok=True)
 
-    # %% [cell 29]
     val_P = pd.DataFrame()
     early_count = 0
     early_vsen = 0
@@ -348,8 +232,6 @@ def main():
             print(' ')
             early_count = early_count + 1
             scheduler.step(vloss)
-
-    # %% [cell 30]
 
 
 if __name__ == '__main__':

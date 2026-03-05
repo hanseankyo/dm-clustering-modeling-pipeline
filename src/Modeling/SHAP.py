@@ -1,8 +1,6 @@
 def main():
     # -*- coding: utf-8 -*-
-    # Auto-generated from SHAP.ipynb
 
-    # %% [cell 1]
     from pathlib import Path
     import sys
 
@@ -11,6 +9,7 @@ def main():
     if str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
     from config import DATA_DIR, OUTPUT_DIR, MODEL_DIR
+    from modeling_common import FCNetwork, check_correct, mkMBP, mk_eGFR_data, seed_everything
 
     import pandas as pd
     import numpy as np
@@ -54,21 +53,6 @@ def main():
     ])
     log_paths("Output dirs:", [OUTPUT_DIR, MODEL_DIR])
 
-    def seed_everything(seed: int = 42) -> None:
-        os.environ["PYTHONHASHSEED"] = str(seed)
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        try:
-            torch.use_deterministic_algorithms(True)
-        except Exception:
-            # Fallback for older torch versions
-            pass
-
     seed_everything(42)
 
     def latest_pretrain_path(pretrain_dir):
@@ -81,7 +65,6 @@ def main():
             return int(m.group(1)) if m else -1
         return max(candidates, key=epoch_num)
 
-    # %% [cell 2]
     import numpy as np
     import pandas as pd
     import torch
@@ -96,18 +79,16 @@ def main():
     from sklearn.metrics import roc_auc_score, f1_score
     import glob
 
-    # %% [cell 3]
     from sklearn.metrics import (
         roc_auc_score, f1_score,fbeta_score, confusion_matrix
     )
 
-    # %% [cell 4]
     if torch.cuda.is_available():
-        device=torch.device('cpu')
+        device=torch.device('cuda')
     else:
         device=torch.device('cpu')
+    print(f"[INFO] device: {device}")
 
-    # %% [cell 5]
     def validation_func(data,model,criterion, cutoff=0.5):
         snp=data['snp']
         cli=data['cli']
@@ -126,37 +107,6 @@ def main():
 
         return val_loss, acc, sen, spe, auc,f1,f2, logit_output.cpu().detach().numpy()
 
-    # %% [cell 6]
-    # Function for confusion metrics
-    def check_correct(predict, y):     #Using def enables us to customize our own functions. 
-        result = {}
-        result['True-Positive'] = 0
-        result['True-Negative'] = 0
-        result['False-Negative'] = 0
-        result['False-Positive'] = 0
-
-        for i in range(len(predict)) :
-            if predict[i] == y[i] :
-                if y[i] == 0 :
-                    result['True-Negative'] += 1
-                else :
-                    result['True-Positive'] += 1
-            else :
-                if y[i] == 0 :
-                    result['False-Positive'] += 1
-                else :
-                    result['False-Negative'] += 1
-
-        try:
-            accuracy=(result['True-Positive']+result['True-Negative'])/len(y)  # Accuracy = correct predictions / all predictions 
-            sensitivity=result['True-Positive']/(result['True-Positive']+result['False-Negative']) # TP / TP + FN
-            specificity=result['True-Negative']/(result['True-Negative']+result['False-Positive']) # TN / TN + FP
-        except ZeroDivisionError:
-            print('0 divisionerror')
-
-        return accuracy, sensitivity, specificity
-
-    # %% [cell 7]
     # Function for DNN performance
     def model_performance_DNN(real,pred,cutoff):
 
@@ -181,34 +131,6 @@ def main():
 
         return accuracy, sensitivity, specificity, auc, f1, f2
 
-    # %% [cell 8]
-    def eGFR_cal(Cr,age, sex):
-        if sex == 1 :# 여성
-            K = 0.7
-            alpha = -0.241 
-            last = 1.012
-        else:# 남성
-            K = 0.9
-            alpha = -0.302 
-            last = 1
-
-        eGFR = 142*((min(Cr/K,1))**alpha)*((max(Cr/K,1))**(-1.2))*((0.9938)**age)*last
-        return np.round(eGFR,0)
-
-    # %% [cell 9]
-    def mk_eGFR_data(clinical_only_raw):
-        eGFR_data = []
-        for sample in range(len(clinical_only_raw)):
-            eGFR_data.append(eGFR_cal(clinical_only_raw.loc[sample,"Cr"], clinical_only_raw.loc[sample,"age"], clinical_only_raw.loc[sample,"F"]))
-        return eGFR_data
-
-    # %% [cell 10]
-    def mkMBP(cli):
-        cli['MBP'] = (2*cli['dia'] + cli['sys'])/3
-        cli = cli.drop(columns = ['dia','sys'])
-        return cli
-
-    # %% [cell 11]
     class Net1(nn.Module):
         def __init__(self, SNP_FEATURE_NUM, CLI_FEATURE_NUM, T_FEATURE_NUM,pre_model):
             super(Net1,self).__init__()
@@ -293,20 +215,18 @@ def main():
             elif func=='mish':
                 return nn.Mish()
 
-    # %% [cell 12]
     def linspace(start, end, n):
         print(end)
         step = (end - start) / (n - 1)
         return [start + int(np.round(i * step)) for i in range(n)]
 
-    # %% [cell 13]
     class GenerateData(Dataset):
         def __init__(self,dataset):
             #dataset:dict
             self.snp=torch.from_numpy(dataset['snp']).float()
             self.cli=torch.from_numpy(dataset['cli']).float()
             self.y=torch.from_numpy(dataset['y']).float()
-    #         self.len=dataset[''].shape[0]
+            self.len=dataset['snp'].shape[0]
 
         def __getitem__(self,idx):
             data={'snp':self.snp[idx],'cli':self.cli[idx],'y':self.y[idx]}
@@ -314,43 +234,11 @@ def main():
         def __len__(self):
             return self.len
 
-    # %% [cell 14]
-    class FCNetwork(nn.Module):
-        def __init__(self,FEATURE_NUM):
-            super(FCNetwork, self).__init__()
-            self.pre_part=nn.Sequential(
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),
-                nn.Linear(FEATURE_NUM, FEATURE_NUM),
-                nn.BatchNorm1d(FEATURE_NUM),
-                nn.ELU(),
-                nn.Dropout(),  
-
-            )
-            self.fc4 = nn.Linear(FEATURE_NUM, 1)
-
-        def forward(self, x):
-            x=self.pre_part(x)
-            out=self.fc4(x)
-            return out
-
-    # %% [cell 15]
     PRE_FEATURE_NUM=18
     pre_model=FCNetwork(PRE_FEATURE_NUM)
     pretraining_path = latest_pretrain_path(MODEL_DIR / 'Pretrain')
     print(f"[INPUT] {pretraining_path}")
 
-    # %% [cell 16]
     def load_data(file_path,idx,scaler):
         tr_path=os.path.join(file_path,f'Train.csv')
         val_path=os.path.join(file_path,f'Validation.csv')
@@ -399,7 +287,6 @@ def main():
 
         return (train_x,train_y),(validation_x,validation_y),(test_x,test_y),sample,scaler, trsample, valsample, tssample
 
-    # %% [cell 17]
     def load_data2(file_path,idx,scaler):
         tr_path=os.path.join(file_path,f'Train.csv')
         val_path=os.path.join(file_path,f'Validation.csv')
@@ -446,7 +333,6 @@ def main():
 
         return (train_x,train_y),(validation_x,validation_y),(test_x,test_y),sample
 
-    # %% [cell 18]
     from itertools import product
 
     batch_size_list = [1024]
@@ -464,13 +350,11 @@ def main():
 
     print(len(combinations))
 
-    # %% [cell 19]
     # 디렉터리 경로 지정
     directory_path = MODEL_DIR / 'Transfer_learning'
 
     matching_files = glob.glob(str(directory_path / 'best_model_elu_*'))
 
-    # %% [cell 21]
     criterion=nn.BCEWithLogitsLoss(pos_weight=torch.tensor(8.0))
     val_perf = []
     test_perf = []
@@ -529,55 +413,42 @@ def main():
 
             print(model_num, 'vauc: ',vauc)
 
-    # %% [cell 22]
     val_df = pd.DataFrame(val_perf,columns = ['model','loss','acc','sen','spe','auc','f1','f2'])
     test_df = pd.DataFrame(test_perf,columns = ['model','loss','acc','sen','spe','auc','f1','f2'])
 
-    # %% [cell 23]
     val_df.sort_values(by='auc',ascending=False)
 
-    # %% [cell 24]
     test_df.sort_values(by='auc',ascending=False)
 
-    # %% [cell 25]
     val_num = 0
     val_df.iloc[[val_num],:]
 
-    # %% [cell 27]
     tr3 = pd.read_csv(DATA_DIR / "Train.csv")
     val3 = pd.read_csv(DATA_DIR / "Validation.csv")
     ts3 = pd.read_csv(DATA_DIR / "Test.csv")
     total3 = pd.concat([tr3,val3,ts3]).reset_index(drop=True)
 
-    # %% [cell 28]
     total3 = mkMBP(total3)
     total3['Tg']=np.log(total3['Tg'])
     total3['Cr'] = mk_eGFR_data(total3)
 
-    # %% [cell 29]
     total3 = total3[total3['area'] != 'SN'].reset_index(drop=True)
     # total3 = total3[total3['area'] == 55].reset_index(drop=True)
 
-    # %% [cell 30]
     len(total3['sample'].drop_duplicates())
 
-    # %% [cell 31]
     total3['progress_DM'].value_counts()
 
-    # %% [cell 33]
     file_path = DATA_DIR
 
-    # %% [cell 34]
     train,validation,test, sample = load_data2(file_path,model_num,scaler)
     snp_col = list(train[0].columns[~train[0].columns.isin(used_columns)])
     tr_snp_x,tr_cli_x=train[0][snp_col],train[0][used_columns]
     val_snp_x,val_cli_x=validation[0][snp_col],validation[0][used_columns]
     ts_snp_x,ts_cli_x=test[0][snp_col],test[0][used_columns]
 
-    # %% [cell 35]
     snp_count = 31
 
-    # %% [cell 36]
     torch_data_tr = torch.from_numpy(tr_snp_x.values).to(device).float()
     torch_data_tr2 = torch.from_numpy(tr_cli_x.values).to(device).float()
 
@@ -587,25 +458,20 @@ def main():
     torch_data_ts = torch.from_numpy(ts_snp_x.values).to(device).float()
     torch_data_ts2 = torch.from_numpy(ts_cli_x.values).to(device).float()
 
-    # %% [cell 37]
     snp = pd.concat([tr_snp_x,val_snp_x,ts_snp_x]).reset_index(drop=True)
     cli = pd.concat([tr_cli_x,val_cli_x,ts_cli_x]).reset_index(drop=True)
 
-    # %% [cell 38]
     torch_data_total = torch.from_numpy(snp.values).to(device).float()
     torch_data_total2 = torch.from_numpy(cli.values).to(device).float()
 
-    # %% [cell 40]
     import shap
     explainer_shap_total = shap.GradientExplainer(models, [torch_data_tr, torch_data_tr2])
     explainer_shap_ts = shap.GradientExplainer(models, [torch_data_tr, torch_data_tr2])
 
-    # %% [cell 41]
     # start = time.time()
     # shap_values_ts_data = explainer_shap_ts.shap_values([torch_data_ts, torch_data_ts2])
     # print(time.time() - start)
 
-    # %% [cell 43]
     shap_total_path = OUTPUT_DIR / "SHAP_total_koges.csv"
     shap_total_sample_path = OUTPUT_DIR / "SHAP_total_koges_sample.csv"
 
@@ -615,7 +481,6 @@ def main():
         print(f"  {shap_total_sample_path}")
         total_shap = pd.read_csv(shap_total_sample_path)
     else:
-        # %% [cell 42]
         start = time.time()
         shap_values_total_data = explainer_shap_total.shap_values([torch_data_total, torch_data_total2])
         print(time.time() - start)
@@ -625,7 +490,6 @@ def main():
         shap_values_total_snp.columns = snp.columns
         shap_values_total_cli.columns = cli.columns
 
-        # %% [cell 44]
         total_shap = pd.concat([shap_values_total_snp,shap_values_total_cli],axis=1)
         print(f"[OUTPUT] {shap_total_path}")
         total_shap.to_csv(shap_total_path, index=False)
@@ -633,10 +497,8 @@ def main():
         print(f"[OUTPUT] {shap_total_sample_path}")
         total_shap.to_csv(shap_total_sample_path, index=False)
 
-    # %% [cell 46]
     total_shap = pd.read_csv(shap_total_sample_path)
 
-    # %% [cell 47]
     raw_data_path = DATA_DIR / "sample_area_mapping.csv"
     if not raw_data_path.exists():
         print(f"[WARN] Missing file: {raw_data_path}")
@@ -645,46 +507,36 @@ def main():
     else:
         raw_data0319 = pd.read_csv(raw_data_path)
 
-    # %% [cell 48]
     if raw_data0319 is not None:
         raw_data0319 = raw_data0319[['dist_id','area']]
         raw_data0319 = raw_data0319.rename(columns = {'dist_id':'sample'})
 
-        # %% [cell 49]
         ANAS_shap = total_shap.merge(raw_data0319)
 
-        # %% [cell 50]
         ANAS_shap = ANAS_shap[(ANAS_shap['area'] == 'AS')|(ANAS_shap['area'] == 'AN')].reset_index(drop=True)
 
-        # %% [cell 51]
         print(f"[OUTPUT] {OUTPUT_DIR / 'SHAP_total_ANAS.csv'}")
         ANAS_shap.drop(columns = ['area']).to_csv(OUTPUT_DIR / "SHAP_total_ANAS.csv",index=False)
 
-    # %% [cell 53]
     tr3 = pd.read_csv(DATA_DIR / "Train.csv")
     val3 = pd.read_csv(DATA_DIR / "Validation.csv")
     ts3 = pd.read_csv(DATA_DIR / "Test.csv")
     total3 = pd.concat([tr3,val3,ts3]).reset_index(drop=True)
 
-    # %% [cell 54]
     total3 = mkMBP(total3)
     total3['Tg']=np.log(total3['Tg'])
     total3['Cr'] = mk_eGFR_data(total3)
 
-    # %% [cell 55]
     file_path = DATA_DIR / 'SNUH'
 
-    # %% [cell 56]
     train,validation,test, sample = load_data2(file_path,model_num,scaler)
     snp_col = list(train[0].columns[~train[0].columns.isin(used_columns)])
     tr_snp_x,tr_cli_x=train[0][snp_col],train[0][used_columns]
     val_snp_x,val_cli_x=validation[0][snp_col],validation[0][used_columns]
     ts_snp_x,ts_cli_x=test[0][snp_col],test[0][used_columns]
 
-    # %% [cell 57]
     snp_count = 31
 
-    # %% [cell 58]
     torch_data_tr = torch.from_numpy(tr_snp_x.values).to(device).float()
     torch_data_tr2 = torch.from_numpy(tr_cli_x.values).to(device).float()
 
@@ -694,20 +546,16 @@ def main():
     torch_data_ts = torch.from_numpy(ts_snp_x.values).to(device).float()
     torch_data_ts2 = torch.from_numpy(ts_cli_x.values).to(device).float()
 
-    # %% [cell 59]
     snp = pd.concat([tr_snp_x,val_snp_x,ts_snp_x]).reset_index(drop=True)
     cli = pd.concat([tr_cli_x,val_cli_x,ts_cli_x]).reset_index(drop=True)
 
-    # %% [cell 60]
     torch_data_total = torch.from_numpy(snp.values).to(device).float()
     torch_data_total2 = torch.from_numpy(cli.values).to(device).float()
 
-    # %% [cell 61]
     import shap
     explainer_shap_total = shap.GradientExplainer(models, [torch_data_tr, torch_data_tr2])
     explainer_shap_ts = shap.GradientExplainer(models, [torch_data_tr, torch_data_tr2])
 
-    # %% [cell 62]
     shap_snu_path = OUTPUT_DIR / "SHAP_total_SNUH.csv"
     shap_snu_sample_path = OUTPUT_DIR / "SHAP_total_SNUH_sample.csv"
 
@@ -720,13 +568,11 @@ def main():
         shap_values_total_data = explainer_shap_total.shap_values([torch_data_total, torch_data_total2])
         print(time.time() - start)
 
-        # %% [cell 63]
         shap_values_total_snp = pd.DataFrame(shap_values_total_data[0])
         shap_values_total_cli = pd.DataFrame(shap_values_total_data[1])
         shap_values_total_snp.columns = snp.columns
         shap_values_total_cli.columns = cli.columns
 
-        # %% [cell 64]
         total_shap = pd.concat([shap_values_total_snp,shap_values_total_cli],axis=1)
         print(f"[OUTPUT] {shap_snu_path}")
         total_shap.to_csv(shap_snu_path, index=False)
@@ -734,7 +580,6 @@ def main():
         print(f"[OUTPUT] {shap_snu_sample_path}")
         total_shap.to_csv(shap_snu_sample_path, index=False)
 
-    # %% [cell 66]
     # (Plotting section removed)
 
 
