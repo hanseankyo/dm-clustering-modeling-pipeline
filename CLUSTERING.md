@@ -19,11 +19,15 @@ Resolution order:
 - Otherwise, the file is loaded from `outputs/`.
 
 ## Run
-### Run all scripts in a cohort (parallel)
+### Run all scripts in a cohort
 ```bash
 scripts/run_clustering_all.sh KoGES
 scripts/run_clustering_all.sh ANAS
 scripts/run_clustering_all.sh SNUH
+```
+Default mode is sequential (`CLUSTER_JOBS=1`). To run in parallel:
+```bash
+CLUSTER_JOBS=4 scripts/run_clustering_all.sh KoGES
 ```
 
 ### Run a single script

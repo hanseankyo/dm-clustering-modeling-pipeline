@@ -5,8 +5,7 @@ This repository contains **modeling (Pretrain/Train)**, **SHAP analysis**, and *
 ## Project Layout
 - `src/Modeling/` : Pretrain/Train/SHAP scripts
 - `src/Clustering/` : cohort-specific clustering scripts
-- `notebooks/` : original notebooks (reference only)
-- `data/` : input data (not tracked in Git)
+- `data/` : input data (`data/real_data/` is ignored; lightweight synthetic samples can be tracked)
 - `outputs/` : generated outputs (CSV, etc.)
 - `models/` : model checkpoints
 - `scripts/` : helper shell scripts
@@ -78,11 +77,15 @@ scripts/run_modeling.sh shap
 
 If the same files exist in `data/`, `data/` is used first.
 
-### Run (all scripts in parallel per cohort)
+### Run (all scripts in a cohort)
 ```bash
 scripts/run_clustering_all.sh KoGES
 scripts/run_clustering_all.sh ANAS
 scripts/run_clustering_all.sh SNUH
+```
+Default mode is sequential (`CLUSTER_JOBS=1`). To enable parallel runs:
+```bash
+CLUSTER_JOBS=4 scripts/run_clustering_all.sh KoGES
 ```
 
 ### Run (single script)

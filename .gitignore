@@ -53,3 +53,7 @@ runs/
 
 # OS
 .DS_Store
+
+# Codex local instructions
+AGENTS.md
+AGENT.md
