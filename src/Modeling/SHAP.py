@@ -24,14 +24,13 @@ def main():
     from sklearn.preprocessing import MinMaxScaler
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import mean_squared_error
-    from sklearn.metrics import roc_auc_score
+    from sklearn.metrics import roc_auc_score, f1_score, fbeta_score
     from IPython.display import clear_output
     import matplotlib.pyplot as plt
     from datetime import datetime
     import datetime as dt
-    import sys
+    import glob
     import os
-    import random
     import re
     # import umap
     import argparse
@@ -64,24 +63,6 @@ def main():
             m = re.search(r'best_model_(\d+)\.h5$', p.name)
             return int(m.group(1)) if m else -1
         return max(candidates, key=epoch_num)
-
-    import numpy as np
-    import pandas as pd
-    import torch
-    import os
-    from sklearn.preprocessing import MinMaxScaler
-    from sklearn.model_selection import train_test_split
-    import torch
-    import torch.nn as nn
-    from torch import optim
-    from torch.utils.data import Dataset,DataLoader, WeightedRandomSampler
-    from sklearn.metrics import mean_squared_error
-    from sklearn.metrics import roc_auc_score, f1_score
-    import glob
-
-    from sklearn.metrics import (
-        roc_auc_score, f1_score,fbeta_score, confusion_matrix
-    )
 
     if torch.cuda.is_available():
         device=torch.device('cuda')
@@ -388,15 +369,17 @@ def main():
             Total_fe_lst.reverse()
             Total_fe_lst.pop()
 
-            weighted_pos_weight=hypernum[5]
+            weight_match = re.search(r'W-([0-9]*\.?[0-9]+)', Path(hypernum).name)
+            if not weight_match:
+                raise ValueError(f"Unable to parse pos_weight from checkpoint name: {hypernum}")
+            weighted_pos_weight = float(weight_match.group(1))
+            criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(weighted_pos_weight))
 
             pre_model=FCNetwork(PRE_FEATURE_NUM).to(device)
             pre_model.load_state_dict(torch.load(pretraining_path, weights_only=True))
             pre_model=pre_model.pre_part
 
             models = Net1(SNP_fe_num, Cli_fe_num, Total_fe_num, pre_model).to(device)
-            # for load_link in matching_files:
-            matching_files = glob.glob(str(directory_path / 'best_model_elu_*'))
             models.load_state_dict(torch.load(hypernum, weights_only=True))
             models.eval()
 

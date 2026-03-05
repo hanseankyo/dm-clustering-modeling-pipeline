@@ -15,7 +15,6 @@ def main():
     import pandas as pd
     import torch
     import os
-    import torch
     import torch.nn as nn
     from torch import optim
     from torch.utils.data import Dataset,DataLoader, WeightedRandomSampler
@@ -33,9 +32,6 @@ def main():
     log_paths("Output dirs:", [OUTPUT_DIR, MODEL_DIR])
 
     clinical_only_raw = pd.read_csv(DATA_DIR / "Only_clinical.csv")
-
-    import torch
-    import numpy as np
 
     # Function for DNN performance
     def model_performance_DNN(real,pred,cutoff):
@@ -160,7 +156,10 @@ def main():
     save_path = MODEL_DIR / 'Pretrain'
     save_path.mkdir(parents=True, exist_ok=True)
 
-    val_P = pd.DataFrame()
+    val_P = pd.DataFrame(columns=["name", "acc", "sen", "spe", "auc"])
+    best_val_record = None
+    best_model_name = None
+    best_epoch_label = None
     early_count = 0
     early_vsen = 0
     early_auc = 0
@@ -206,8 +205,12 @@ def main():
         net.train()
         if early_count == EARLY:
             print('early stopping!')
-            val_p['name'] = Ep + '_' + file_name.name
-            val_P = pd.concat([val_P,val_p])
+            if best_val_record is not None:
+                final_val = best_val_record.copy()
+                final_val['name'] = f"{best_epoch_label}_{best_model_name}"
+                val_P = pd.concat([val_P, final_val], ignore_index=True)
+            else:
+                print('[WARN] No validation improvement found before early stopping.')
             print(f"[OUTPUT] {save_path / 'Validation_Performance.csv'}")
             val_P.to_csv(save_path / 'Validation_Performance.csv', index=False)
             break
@@ -224,6 +227,9 @@ def main():
                                  "sen":[vsen],
                                  "spe":[vspe],
                                  "auc":[vauc]})
+            best_val_record = val_p.copy()
+            best_model_name = file_name.name
+            best_epoch_label = Ep
             early_point = vloss
             early_vsen = vsen
             early_count = 0     
@@ -232,6 +238,15 @@ def main():
             print(' ')
             early_count = early_count + 1
             scheduler.step(vloss)
+
+    # Save summary even if early stopping condition is never triggered.
+    if val_P.empty and best_val_record is not None:
+        final_val = best_val_record.copy()
+        final_val['name'] = f"{best_epoch_label}_{best_model_name}"
+        val_P = pd.concat([val_P, final_val], ignore_index=True)
+    if not val_P.empty:
+        print(f"[OUTPUT] {save_path / 'Validation_Performance.csv'}")
+        val_P.to_csv(save_path / 'Validation_Performance.csv', index=False)
 
 
 if __name__ == '__main__':
