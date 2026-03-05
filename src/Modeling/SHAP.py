@@ -50,7 +50,7 @@ def main():
         DATA_DIR / "Only_clinical.csv",
         DATA_DIR / "SHAP_total_koges_sample.csv",
         DATA_DIR / "SHAP_total_koges.csv",
-        DATA_DIR / "Koges_Ansan_Ansung_Urban_Country_SNUH_Gangnam_HTN,LIPID 변경.csv",
+        DATA_DIR / "sample_area_mapping.csv",
     ])
     log_paths("Output dirs:", [OUTPUT_DIR, MODEL_DIR])
 
@@ -637,7 +637,7 @@ def main():
     total_shap = pd.read_csv(shap_total_sample_path)
 
     # %% [cell 47]
-    raw_data_path = DATA_DIR / "Koges_Ansan_Ansung_Urban_Country_SNUH_Gangnam_HTN,LIPID 변경.csv"
+    raw_data_path = DATA_DIR / "sample_area_mapping.csv"
     if not raw_data_path.exists():
         print(f"[WARN] Missing file: {raw_data_path}")
         print("[WARN] Skipping ANAS merge/export section.")

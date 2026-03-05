@@ -47,7 +47,7 @@ scripts/run_modeling.sh train
 - `data/Validation.csv`
 - `data/Test.csv`
 - `data/Only_clinical.csv`
-- `data/Koges_Ansan_Ansung_Urban_Country_SNUH_Gangnam_HTN,LIPID 변경.csv` (for ANAS merge)
+- `data/sample_area_mapping.csv` (for ANAS merge; uses `dist_id`, `area`)
 - Model checkpoints in `models/Pretrain/` and `models/Transfer_learning/`
 
 ### Run

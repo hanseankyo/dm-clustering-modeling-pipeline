@@ -10,9 +10,30 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Data and outputs
-/data/
+/data/*
+!/data/Train.csv
+!/data/Validation.csv
+!/data/Test.csv
+!/data/Only_clinical.csv
+!/data/sample_area_mapping.csv
+!/data/SNUH/
+/data/SNUH/*
+!/data/SNUH/Train.csv
+!/data/SNUH/Validation.csv
+!/data/SNUH/Test.csv
+!/data/SNUH/Only_clinical.csv
+/data/real_data/
 /outputs/
 *.csv
+!/data/Train.csv
+!/data/Validation.csv
+!/data/Test.csv
+!/data/Only_clinical.csv
+!/data/sample_area_mapping.csv
+!/data/SNUH/Train.csv
+!/data/SNUH/Validation.csv
+!/data/SNUH/Test.csv
+!/data/SNUH/Only_clinical.csv
 *.tsv
 *.xlsx
 *.parquet

@@ -12,7 +12,7 @@ Place these under `data/`:
 - `Validation.csv`
 - `Test.csv`
 - `Only_clinical.csv`
-- `Koges_Ansan_Ansung_Urban_Country_SNUH_Gangnam_HTN,LIPID 변경.csv` (used to derive ANAS output)
+- `sample_area_mapping.csv` (used to derive ANAS output; columns: `dist_id`, `area`)
 
 Model checkpoints required:
 - `models/Pretrain/best_model_<epoch>.h5`
