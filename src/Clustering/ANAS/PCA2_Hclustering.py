@@ -43,7 +43,7 @@ raw_data = pd.read_csv(resolve_input("SHAP_total_ANAS.csv"))
 save_path = SAVE_DIR
 save_path.mkdir(parents=True, exist_ok=True)
 
-clustering_lst = ['bmi', 'FBS', 'Hba1c', 'MBP', 'waist', 'Tg', 'ALT','exercise','drink','smoke']
+clustering_lst = ['bmi', 'FBS', 'Hba1c', 'MBP', 'Tg', 'ALT','exercise','drink','smoke']
 drop_variables_lst = ['area']
 
 np.random.seed(42)
